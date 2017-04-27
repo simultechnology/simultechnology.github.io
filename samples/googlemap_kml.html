@@ -16,14 +16,33 @@
       margin: 0;
       padding: 0;
     }
+    #info-area {
+      padding: 5px 15px;
+      position: absolute;
+      background: #fff;
+      top: 10px;
+      left: 150px;
+    }
   </style>
 </head>
 <body>
 <div id="map"></div>
+<div id="info-area">
+  <div>中心(緯度,経度) : <span id="info-latlon"></span></div>
+  <div>半径 : <span id="info-radius"></span>m</div>
+  <div>直径 : <span id="info-diameter"></span>m</div>
+</div>
 <script>
 
-
   var center =  {lat: 35.664, lng: 139.745};
+
+  var circleCenter = document.getElementById('info-latlon');
+  var circleRadius = document.getElementById('info-radius');
+  var circleDiameter = document.getElementById('info-diameter');
+
+  circleCenter.textContent = center.lat + ',' + center.lng;
+  circleRadius.textContent = 1000;
+  circleDiameter.textContent = 1000 * 2;
 
   function initMap() {
     var map = new google.maps.Map(document.getElementById('map'), {
@@ -40,7 +59,21 @@
       map: map,
       center: center,
       radius: 1000,
-      draggable: true
+      draggable: true,
+      editable: true
+    });
+
+    cityCircle.addListener('radius_changed', function(event) {
+      var radius = Math.floor(this.getRadius());
+      circleRadius.textContent = radius;
+      circleDiameter.textContent = radius * 2;
+    });
+
+    cityCircle.addListener('center_changed', function(event) {
+      var center = this.getCenter();
+      var lat = center.lat();
+      var lng = center.lng();
+      circleCenter.textContent = (Math.floor(lat * 10000000) / 10000000) + ',' + (Math.floor(lng * 10000000) / 10000000);
     });
 
     var kmlLayer = new google.maps.KmlLayer({
