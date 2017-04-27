@@ -5,12 +5,9 @@
   <meta charset="utf-8">
   <title>KML Layers</title>
   <style>
-    /* Always set the map height explicitly to define the size of the div
-     * element that contains the map. */
     #map {
       height: 100%;
     }
-    /* Optional: Makes the sample page fill the window. */
     html, body {
       height: 100%;
       margin: 0;
@@ -20,10 +17,12 @@
       padding: 5px 15px;
       position: absolute;
       background: #fff;
-      top: 10px;
-      left: 150px;
+      top: 70px;
+      left: 10px;
     }
   </style>
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/3.9.0/firebase.js"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -31,21 +30,39 @@
   <div>中心(緯度,経度) : <span id="info-latlon"></span></div>
   <div>半径 : <span id="info-radius"></span>m</div>
   <div>直径 : <span id="info-diameter"></span>m</div>
+  <br>
+  ファイルをドロップしてください。
+  <div id="droppable" style="border: gray solid 1px; padding: 2em;">
+  </div>
 </div>
 <script>
 
+  // Initialize Firebase
+  var config = {
+    apiKey: "AIzaSyAVQ3Y3J7Q3asuCzu9k3Su-F6bc1I3n-4k",
+    authDomain: "kml-samples-63acf.firebaseapp.com",
+    databaseURL: "https://kml-samples-63acf.firebaseio.com",
+    projectId: "kml-samples-63acf",
+    storageBucket: "kml-samples-63acf.appspot.com",
+    messagingSenderId: "147320865015"
+  };
+
+  firebase.initializeApp(config);
+
+  var map, kmlLayer, isKmlMoved = false;
+
   var center =  {lat: 35.664, lng: 139.745};
 
-  var circleCenter = document.getElementById('info-latlon');
-  var circleRadius = document.getElementById('info-radius');
-  var circleDiameter = document.getElementById('info-diameter');
+  let circleCenter = document.getElementById('info-latlon');
+  let circleRadius = document.getElementById('info-radius');
+  let circleDiameter = document.getElementById('info-diameter');
 
   circleCenter.textContent = center.lat + ',' + center.lng;
   circleRadius.textContent = 1000;
   circleDiameter.textContent = 1000 * 2;
 
   function initMap() {
-    var map = new google.maps.Map(document.getElementById('map'), {
+    map = new google.maps.Map(document.getElementById('map'), {
       zoom: 14,
       center: center
     });
@@ -63,25 +80,82 @@
       editable: true
     });
 
-    cityCircle.addListener('radius_changed', function(event) {
-      var radius = Math.floor(this.getRadius());
+    cityCircle.addListener('radius_changed', function() {
+      let radius = Math.floor(this.getRadius());
       circleRadius.textContent = radius;
       circleDiameter.textContent = radius * 2;
     });
 
-    cityCircle.addListener('center_changed', function(event) {
-      var center = this.getCenter();
-      var lat = center.lat();
-      var lng = center.lng();
+    cityCircle.addListener('center_changed', function() {
+      let center = this.getCenter();
+      let lat = center.lat();
+      let lng = center.lng();
       circleCenter.textContent = (Math.floor(lat * 10000000) / 10000000) + ',' + (Math.floor(lng * 10000000) / 10000000);
     });
 
-    var kmlLayer = new google.maps.KmlLayer({
+    kmlLayer = new google.maps.KmlLayer({
       url: 'https://s3-ap-northeast-1.amazonaws.com/geo-sample-data/minato-shelters_org.kml',
       map: map
     });
 
+    map.addListener('center_changed', function () {
+      if (isKmlMoved) {
+        cityCircle.setCenter(map.getCenter())
+      }
+      isKmlMoved = false;
+    });
+
+    setupDragAndDrop(map);
+
   }
+
+
+  function setupDragAndDrop(map) {
+
+    var droppable = $("#droppable");
+
+    if(!window.FileReader) {
+      alert("File API がサポートされていません。");
+      return false;
+    }
+
+    var cancelEvent = function(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      return false;
+    }
+
+    droppable.bind("dragenter", cancelEvent);
+    droppable.bind("dragover", cancelEvent);
+
+    var handleDroppedFile = function(event) {
+      var file = event.originalEvent.dataTransfer.files[0];
+      var fileReader = new FileReader();
+      fileReader.onload = function(event) {
+        $("#droppable").text(file.name);
+
+        var storageRef = firebase.storage().ref();
+        var ref = storageRef.child(file.name);
+        ref.putString(event.target.result).then(function(snapshot) {
+          console.log(snapshot.downloadURL);
+          kmlLayer.setMap(null);
+          kmlLayer = new google.maps.KmlLayer({
+            url: snapshot.downloadURL
+          });
+          kmlLayer.setMap(map);
+          isKmlMoved = true;
+        });
+      };
+      fileReader.readAsText(file);
+
+      cancelEvent(event);
+      return false;
+    };
+
+    droppable.bind("drop", handleDroppedFile);
+  }
+
+
 </script>
 <script async defer
         src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC1Kiv77B-UsLfsKOSvawmct2unBMDyV6I&callback=initMap">
